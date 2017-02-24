@@ -102,10 +102,12 @@
 #                                                                         #
 #*************************************************************************#
 
-bin_PROGRAMS = dirwatch
+bin_PROGRAMS = dirwatch distributor
 
 dirwatch_SOURCES = dirwatch.c
 dirwatch_LDADD = ../xen_helper/libxenhelper.la
+
+distributor_SOURCES = distributor.c
 
 AM_CFLAGS = -Werror -Wall -Wextra $(CFLAGS) $(GLIB_CFLAGS)
 AM_CFLAGS += -Wno-missing-field-initializers
