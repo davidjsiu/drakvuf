@@ -225,28 +225,17 @@ gpointer timer_thread(gpointer data) {
     return NULL;
 }
 
-static void prepare(char *sample, struct start_drakvuf *start)
+static struct start_drakvuf* prepare(struct start_drakvuf *start, int _threadid)
 {
-    if ((!sample && !start) || shutting_down)
-        return;
+    if (shutting_down)
+        return NULL;
 
     domid_t cloneID = 0;
     char *clone_name = NULL;
-    int threadid;
-
-    if (!start)
-        threadid = find_thread();
-    else
-        threadid = start->threadid;
-
-    while(threadid<0 && !shutting_down) {
-        //printf("Waiting for a thread to become available..\n");
-        sleep(1);
-        threadid = find_thread();
-    }
+    int threadid = start ? start->threadid : _threadid;
 
     if ( shutting_down )
-        return;
+        return NULL;
 
     printf("Making clone %i to run %s in thread %u\n", threadid+1, sample ? sample : start->input, threadid);
     make_clone(xen, &cloneID, threadid+1, &clone_name);
@@ -261,14 +250,13 @@ static void prepare(char *sample, struct start_drakvuf *start)
     }
 
     if ( shutting_down )
-        return;
+        return NULL;
 
     //uint64_t shared = xen_memshare(xen, domID, cloneID);
     //printf("Shared %"PRIu64" pages\n", shared);
 
-    if(!start && sample) {
+    if(!start) {
         start = g_malloc0(sizeof(struct start_drakvuf));
-        start->input = sample;
         start->threadid = threadid;
         g_mutex_init(&start->timer_lock);
     }
@@ -277,9 +265,15 @@ static void prepare(char *sample, struct start_drakvuf *start)
     start->clone_name = clone_name;
     start->utime = time(NULL);
 
-    if(sample && !shutting_down) {
-        g_thread_pool_push(pool, start, NULL);
-    }
+    return start;
+}
+
+static inline void start(struct start_drakvuf *start, char *sample) {
+    if ( shutting_down )
+        return;
+
+    start->input = sample;
+    g_thread_pool_push(pool, start, NULL);
 }
 
 void run_drakvuf(gpointer data, gpointer user_data)
@@ -418,6 +412,12 @@ int main(int argc, char** argv)
     do {
         processed = 0;
 
+        int threadid = find_thread();
+        while(threadid<0 && !shutting_down) {
+            sleep(1);
+            threadid = find_thread();
+        }
+
         if ((dir = opendir (in_folder)) != NULL) {
             while ((ent = readdir (dir)) != NULL && !shutting_down) {
                 if (!strcmp(ent->d_name, ".") || !strcmp(ent->d_name, ".."))
@@ -431,7 +431,9 @@ int main(int argc, char** argv)
                     g_free(command);
                 }
 
-                prepare(g_strdup(ent->d_name), NULL);
+                struct start_drakvuf *_start = prepare(NULL, threadid);
+                start(_start);
+
                 processed++;
 
             }
@@ -448,7 +450,7 @@ int main(int argc, char** argv)
 	        printf("Batch processing started %u samples (total %u)\n", processed, total_processed);
         }
 
-        if ( !processed ) {
+        if ( !processed && !shutting_down ) {
             if ( move_sample ) {
                 do {
                     int rv = poll (&pollfd, 1, 1000);
