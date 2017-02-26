@@ -237,11 +237,11 @@ static struct start_drakvuf* prepare(struct start_drakvuf *start, int _threadid)
     if ( shutting_down )
         return NULL;
 
-    printf("[%i] Making clone\n", threadid+1);
+    printf("[%i] Making clone\n", threadid);
     make_clone(xen, &cloneID, threadid+1, &clone_name);
 
     while((!clone_name || !cloneID) && !shutting_down) {
-        printf("[%i] Clone creation failed, trying again\n", threadid+1);
+        printf("[%i] Clone creation failed, trying again\n", threadid);
         free(clone_name);
         clone_name = NULL;
         cloneID = 0;
@@ -269,10 +269,10 @@ static struct start_drakvuf* prepare(struct start_drakvuf *start, int _threadid)
 }
 
 static inline void start(struct start_drakvuf *start, char *sample) {
-    if ( shutting_down )
+    if ( shutting_down || !start || !sample )
         return;
 
-    start->input = sample;
+    start->input = g_strdup(sample);
     g_thread_pool_push(pool, start, NULL);
 }
 
@@ -407,12 +407,11 @@ int main(int argc, char** argv)
         .events = POLLIN
     };
 
-    printf("Starting dirwatch on %s\n", in_folder);
+    int threadid = -1;
 
     do {
         processed = 0;
 
-        int threadid = find_thread();
         while(threadid<0 && !shutting_down) {
             sleep(1);
             threadid = find_thread();
@@ -434,6 +433,7 @@ int main(int argc, char** argv)
                 struct start_drakvuf *_start = prepare(NULL, threadid);
                 start(_start, ent->d_name);
 
+                threadid = -1;
                 processed++;
 
             }
