@@ -477,6 +477,9 @@ int main(int argc, char** argv)
 
     g_thread_pool_free(pool, FALSE, TRUE);
 
+    if ( threadid >= 0 )
+        g_mutex_unlock(&locks[threadid]);
+
     for(i=0;i<threads;i++)
         g_mutex_clear(&locks[i]);
 
