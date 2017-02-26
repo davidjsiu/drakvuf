@@ -237,11 +237,11 @@ static struct start_drakvuf* prepare(struct start_drakvuf *start, int _threadid)
     if ( shutting_down )
         return NULL;
 
-    printf("Making clone %i to run %s in thread %u\n", threadid+1, sample ? sample : start->input, threadid);
+    printf("[%i] Making clone\n", threadid+1);
     make_clone(xen, &cloneID, threadid+1, &clone_name);
 
     while((!clone_name || !cloneID) && !shutting_down) {
-        printf("Clone creation failed, trying again\n");
+        printf("[%i] Clone creation failed, trying again\n", threadid+1);
         free(clone_name);
         clone_name = NULL;
         cloneID = 0;
@@ -341,7 +341,7 @@ end:
     if ( !shutting_down )
     {
         printf("[%i] %s failed to execute on %u because of a timeout, creating new clone\n", start->threadid, start->input, start->cloneID);
-        prepare(NULL, start);
+        prepare(start, -1);
         goto restart;
     }
 }
@@ -432,7 +432,7 @@ int main(int argc, char** argv)
                 }
 
                 struct start_drakvuf *_start = prepare(NULL, threadid);
-                start(_start);
+                start(_start, ent->d_name);
 
                 processed++;
 
