@@ -355,9 +355,9 @@ int main(int argc, char** argv)
     struct sigaction act;
     shutting_down = 0;
 
-    if(argc!=14) {
+    if(argc!=15) {
         printf("Not enough arguments: %i!\n", argc);
-        printf("%s <origin domain name> <domain config> <rekall_profile> <injection pid> <watch folder> <serve folder> <output folder> <max clones> <clone_script> <config_script> <drakvuf_script> <cleanup_script> <tcpdump_script>\n", argv[0]);
+        printf("%s <loop (0) or poll (1)> <origin domain name> <domain config> <rekall_profile> <injection pid> <watch folder> <serve folder> <output folder> <max clones> <clone_script> <config_script> <drakvuf_script> <cleanup_script> <tcpdump_script>\n", argv[0]);
         return 1;
     }
 
@@ -372,26 +372,25 @@ int main(int argc, char** argv)
 
     xen_init_interface(&xen);
 
-    domain_name = argv[1];
-    domain_config = argv[2];
-    rekall_profile = argv[3];
-    injection_pid = atoi(argv[4]);
-    in_folder = argv[5];
-    run_folder = argv[6];
-    out_folder = argv[7];
-    threads = atoi(argv[8]);
-    clone_script = argv[9];
-    config_script = argv[10];
-    drakvuf_script = argv[11];
-    cleanup_script = argv[12];
-    tcpdump_script = argv[13];
+    int do_poll = atoi(argv[1]);
+    domain_name = argv[2];
+    domain_config = argv[3];
+    rekall_profile = argv[4];
+    injection_pid = atoi(argv[5]);
+    in_folder = argv[6];
+    run_folder = argv[7];
+    out_folder = argv[8];
+    threads = atoi(argv[9]);
+    clone_script = argv[10];
+    config_script = argv[11];
+    drakvuf_script = argv[12];
+    cleanup_script = argv[13];
+    tcpdump_script = argv[14];
 
     if (threads > 128) {
         printf("Too many clones requested (max 128 is specified right now)\n");
         return 1;
     }
-
-    bool move_sample = strcmp(in_folder, run_folder);
 
     for(i=0;i<threads;i++)
         g_mutex_init(&locks[i]);
@@ -422,13 +421,11 @@ int main(int argc, char** argv)
                 if (!strcmp(ent->d_name, ".") || !strcmp(ent->d_name, ".."))
                     continue;
 
-                if ( move_sample ) {
-                    char *command = g_malloc0(snprintf(NULL, 0, "mv %s/%s %s/%s", in_folder, ent->d_name, run_folder, ent->d_name) + 1);
-                    sprintf(command, "mv %s/%s %s/%s", in_folder, ent->d_name, run_folder, ent->d_name);
-                    printf("** MOVING FILE FOR PROCESSING: %s\n", command);
-                    g_spawn_command_line_sync(command, NULL, NULL, NULL, NULL);
-                    g_free(command);
-                }
+                char *command = g_malloc0(snprintf(NULL, 0, "mv %s/%s %s/%s", in_folder, ent->d_name, run_folder, ent->d_name) + 1);
+                sprintf(command, "mv %s/%s %s/%s", in_folder, ent->d_name, run_folder, ent->d_name);
+                printf("** MOVING FILE FOR PROCESSING: %s\n", command);
+                g_spawn_command_line_sync(command, NULL, NULL, NULL, NULL);
+                g_free(command);
 
                 struct start_drakvuf *_start = prepare(NULL, threadid);
                 start(_start, ent->d_name);
@@ -451,7 +448,7 @@ int main(int argc, char** argv)
         }
 
         if ( !processed && !shutting_down ) {
-            if ( move_sample ) {
+            if ( do_poll ) {
                 do {
                     int rv = poll (&pollfd, 1, 1000);
                     if ( rv < 0 ) {
